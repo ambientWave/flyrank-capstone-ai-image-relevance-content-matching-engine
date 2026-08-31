@@ -1,0 +1,10 @@
+run: docker compose up
+seed: npm run seed
+test: npm run test
+base_url: http://localhost:3000
+endpoints:
+  - GET /posts/:id/images
+  - POST /suggestions/:id/approve
+  - POST /suggestions/:id/reject
+  - GET /admin/cost-log
+  - GET /admin/eval

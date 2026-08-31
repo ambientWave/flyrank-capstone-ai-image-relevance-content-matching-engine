@@ -1,0 +1,41 @@
+services:
+  api:
+    image: node:25-alpine
+    ports: ["3000:3000"]
+    # Ensure api container restarts if it fails.
+    # This is very crucial especially with PostgreSQL initial boot,
+    # because database files are written to the storage directory.
+    # Otherwise, after postgresql container restarts, the api container
+    # may not be able to connect to the database.
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy # a healthcheck on PostgreSQL and configure api to wait until db is healthy
+      redis:
+        condition: service_healthy
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: tasks
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready alone passes during the temporary first-boot server.
+      # Adding a real SQL query ensures the check only passes when PostgreSQL 
+      # can actually execute queries on the tasks database.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tasks && psql -U postgres -d tasks -c 'SELECT 1'"]
+      start_period: 60s
+      interval: 3s
+      timeout: 5s
+      retries: 5
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes:
+      - ./redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
