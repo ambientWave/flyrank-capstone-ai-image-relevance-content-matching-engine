@@ -1,6 +1,11 @@
 services:
   api:
-    image: node:25-alpine
+    image: node:22-bookworm-slim
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    command: sh -c "npm install && npx tsx src/app.ts"
     ports: ["3000:3000"]
     # Ensure api container restarts if it fails.
     # This is very crucial especially with PostgreSQL initial boot,
@@ -20,8 +25,8 @@ services:
     ports:
       - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
-      interval: 30s
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/8000"]
+      interval: 5s
       timeout: 10s
       retries: 3
   # db:

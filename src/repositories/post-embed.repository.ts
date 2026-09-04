@@ -23,7 +23,10 @@ export class PostEmbedRepository {
     private readonly postCollection: Promise<Collection>;
 
     constructor() {
-        this.client = new ChromaClient({});
+        this.client = new ChromaClient({
+            host: process.env.CHROMADB_HOST || "chromadb",
+            port: 8000
+        });
         this.textEmbeddingModel = CLIPTextModelWithProjection.from_pretrained(MODEL_ID);
         this.tokenizer = AutoTokenizer.from_pretrained(MODEL_ID);
         this.postCollection = this.client.getOrCreateCollection({

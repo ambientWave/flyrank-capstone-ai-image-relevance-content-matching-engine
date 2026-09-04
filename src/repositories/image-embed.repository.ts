@@ -26,7 +26,10 @@ export class ImageEmbedRepository {
     // private readonly postCollection: Promise<Collection>;
 
     constructor() {
-        this.client = new ChromaClient({});
+        this.client = new ChromaClient({
+            host: process.env.CHROMADB_HOST || "chromadb",
+            port: 8000
+        });
         this.imageEmbeddingModel = CLIPVisionModelWithProjection.from_pretrained(MODEL_ID);
         this.processor = AutoProcessor.from_pretrained(MODEL_ID);
         this.imageCollection = this.client.getOrCreateCollection({
@@ -68,6 +71,13 @@ export class ImageEmbedRepository {
         }
 
         const collection = await this.imageCollection;
+        const count = await collection.count();
+        console.log("collection count", count);
+        console.log({
+            ids,
+            embeddings,
+            metadatas,
+        })
         await collection.add({
             ids,
             embeddings,

@@ -13,6 +13,10 @@ const imageEmbedService = new ImageEmbedService();
 
 // 2. Attach it to Express app settings
 app.set('imageEmbedService', imageEmbedService);
+const postEmbedService = new PostEmbedService();
+
+// 2. Attach it to Express app settings
+app.set('postEmbedService', postEmbedService);
 app.use('/', imageRoutes);
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

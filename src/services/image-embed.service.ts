@@ -1,4 +1,3 @@
-// services/ingestion.service.ts
 import { ImageEmbedRepository } from "../repositories/image-embed.repository.ts";
 
 export class ImageEmbedService {
