@@ -13,7 +13,7 @@
   "type": "module",
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^26.4.0",
+    "@types/node": "^26.4.1",
     "@types/swagger-ui-express": "^4.1.8",
     "nodemon": "^3.1.14",
     "swagger-typescript-api": "^13.12.6",
@@ -29,11 +29,14 @@
     "bullmq": "^6.3.2",
     "chromadb": "^3.5.0",
     "dotenv": "^17.4.2",
+    "ioredis": "^6.0.0",
     "pexels": "^1.4.0",
     "pg": "^8.23.0",
     "redis": "^6.2.1",
+    "reflect-metadata": "^0.2.2",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
+    "tsyringe": "^4.3.0",
     "zod": "^4.5.4"
   }
 }

@@ -1,3 +1,4 @@
+import { injectable } from 'tsyringe';
 import {
     AutoProcessor,
     CLIPVisionModelWithProjection,
@@ -17,6 +18,7 @@ export interface ImageEmbedding {
     tags: string[];
 }
 
+@injectable()
 export class ImageEmbedRepository {
     private client: ChromaClient;
     private readonly imageEmbeddingModel: Promise<PreTrainedModel>;

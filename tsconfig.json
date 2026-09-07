@@ -37,5 +37,8 @@
 		"noUncheckedSideEffectImports": true,
 		"moduleDetection": "force",
 		"skipLibCheck": true,
+		// Decorator support for tsyringe
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true
 	}
 }

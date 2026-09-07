@@ -29,22 +29,58 @@ services:
       interval: 5s
       timeout: 10s
       retries: 3
-  # db:
-  #   image: postgres:16-alpine
+  # kafka:
+  #   image: apache/kafka:4.3.0
+  #   ports:
+  #     - "9092:9092"
   #   environment:
-  #     POSTGRES_PASSWORD: dev
-  #     POSTGRES_DB: tasks
+  #     KAFKA_BROKER_ID: 1
+  #     KAFKA_BROKERS: "localhost:9092"
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9092
+  #     KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9092
+  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
   #   volumes:
-  #     - ./postgres_data:/var/lib/postgresql/data
+  #     - ./kafka_data:/bitnami/kafka
   #   healthcheck:
-  #     # pg_isready alone passes during the temporary first-boot server.
-  #     # Adding a real SQL query ensures the check only passes when PostgreSQL 
-  #     # can actually execute queries on the tasks database.
-  #     test: ["CMD-SHELL", "pg_isready -U postgres -d tasks && psql -U postgres -d tasks -c 'SELECT 1'"]
-  #     start_period: 60s
-  #     interval: 3s
-  #     timeout: 5s
+  #     test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+  #     interval: 10s
+  #     timeout: 30s
   #     retries: 5
+  # kafka-ui:
+  #   image: provectuslabs/kafka-ui:latest
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes:
+      - ./redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 5
+    db:
+      image: postgres:16-alpine
+      environment:
+        POSTGRES_PASSWORD: dev
+        POSTGRES_DB: image_understanding_content_matching
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready alone passes during the temporary first-boot server.
+      # Adding a real SQL query ensures the check only passes when PostgreSQL 
+      # can actually execute queries on the tasks database.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tasks && psql -U postgres -d tasks -c 'SELECT 1'"]
+      start_period: 60s
+      interval: 3s
+      timeout: 5s
+      retries: 5
   # redis:
   #   image: redis:7-alpine
   #   ports: ["6379:6379"]
