@@ -65,29 +65,20 @@ services:
       interval: 2s
       timeout: 5s
       retries: 5
-    db:
-      image: postgres:16-alpine
-      environment:
-        POSTGRES_PASSWORD: dev
-        POSTGRES_DB: image_understanding_content_matching
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: image_understanding_content_matching
+    ports: ["5432:5432"]
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
       # pg_isready alone passes during the temporary first-boot server.
       # Adding a real SQL query ensures the check only passes when PostgreSQL 
       # can actually execute queries on the tasks database.
-      test: ["CMD-SHELL", "pg_isready -U postgres -d tasks && psql -U postgres -d tasks -c 'SELECT 1'"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d images && psql -U postgres -d images -c 'SELECT 1'"]
       start_period: 60s
       interval: 3s
       timeout: 5s
       retries: 5
-  # redis:
-  #   image: redis:7-alpine
-  #   ports: ["6379:6379"]
-  #   volumes:
-  #     - ./redis_data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 2s
-  #     timeout: 5s
-  #     retries: 5

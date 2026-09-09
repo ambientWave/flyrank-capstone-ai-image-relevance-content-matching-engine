@@ -59,6 +59,12 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # prisma generated code
 /generated/prisma
 
+# postgres data storage
+/postgres_data
+
+# redis data storage
+/redis_data
+
 # vector data storage
 /chroma_data
 

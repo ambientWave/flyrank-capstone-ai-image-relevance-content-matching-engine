@@ -17,6 +17,12 @@ const imageDBRepository = container.resolve('ImageDBRepository') as ImageDBRepos
 await imageDBRepository.initDB();
 
 // Start workers
+
+// each worker is an independent "loop" that listens
+// to the redis queue for jobs and processes them, utilizing BullMQ.
+// If we want to run more than one instance of a worker, we can do so by simply starting more instances of the worker.
+// The worker will automatically pick up jobs from the queue and process them.
+// This is a simple way to implement a message queue.
 visionWorker().then(worker => {
     console.log('Vision worker started');
     worker.on('error', err => console.error('Vision worker error:', err));

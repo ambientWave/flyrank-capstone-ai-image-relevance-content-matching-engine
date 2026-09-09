@@ -32,7 +32,7 @@ export class ImageEmbedRepository {
             host: process.env.CHROMADB_HOST || "chromadb",
             port: 8000
         });
-        this.imageEmbeddingModel = CLIPVisionModelWithProjection.from_pretrained(MODEL_ID);
+        this.imageEmbeddingModel = CLIPVisionModelWithProjection.from_pretrained(MODEL_ID, { dtype: "fp16" });
         this.processor = AutoProcessor.from_pretrained(MODEL_ID);
         this.imageCollection = this.client.getOrCreateCollection({
             name: "image_embeddings",

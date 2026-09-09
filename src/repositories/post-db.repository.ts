@@ -2,9 +2,14 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
 
+export interface PostRowPreInsertion {
+    url_path: string;
+}
+
 export interface PostRow {
     id: string;
     url_path: string;
+    subject: string;
     created_at: string;
     updated_at: string;
 }
@@ -34,15 +39,15 @@ export class PostDBRepository {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 await this.pool.query(`
-                    CREATE TABLE IF NOT EXISTS "posts" (
+                    CREATE TABLE IF NOT EXISTS "post" (
                         "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         "url_path" TEXT NOT NULL,
-                        "subject" JSONB,
+                        "subject" TEXT,
                         "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
                         "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()
                     )
                 `);
-                console.log('[Database] posts table initialized and ready.');
+                console.log('[Database] post table initialized and ready.');
                 return;
             } catch (err) {
                 console.error(`[Database] Init attempt ${attempt}/${retries} failed. Retrying in ${delayMs / 1000}s...`);
@@ -70,7 +75,7 @@ export class PostDBRepository {
             params.push(filter.url_path.trim());
         }
 
-        let sql = 'SELECT id, url_path, created_at, updated_at FROM posts';
+        let sql = 'SELECT id, url_path, subject, created_at, updated_at FROM post';
         if (conditions.length > 0) {
             sql += ` WHERE ${conditions.join(' AND ')}`;
         }
@@ -82,7 +87,7 @@ export class PostDBRepository {
 
     async findByIds(ids: string[]): Promise<PostRow[] | undefined> {
         const result = await this.pool.query<PostRow>(
-            'SELECT id, url_path, created_at, updated_at FROM posts WHERE id = ANY($1::uuid[])',
+            'SELECT id, url_path, subject, created_at, updated_at FROM post WHERE id = ANY($1::uuid[])',
             [ids]
         );
         const posts: PostRow[] = [];
@@ -95,15 +100,15 @@ export class PostDBRepository {
         return posts;
     }
 
-    async insert(posts: PostRow[]): Promise<PostRow[]> {
+    async insert(posts: PostRowPreInsertion[]): Promise<PostRow[]> {
         if (!posts || posts.length === 0) return [];
 
         const url_paths = posts.map(i => i.url_path);
-        const created_ats = posts.map(i => i.created_at || new Date().toISOString());
-        const updated_ats = posts.map(i => i.updated_at || new Date().toISOString());
+        const created_ats = posts.map(() => new Date().toISOString());
+        const updated_ats = posts.map(() => new Date().toISOString());
 
         const result = await this.pool.query<PostRow>(
-            `INSERT INTO posts (url_path, created_at, updated_at) 
+            `INSERT INTO post (url_path, created_at, updated_at) 
              SELECT * FROM UNNEST($1::text[], $2::timestamptz[], $3::timestamptz[])
              RETURNING id, url_path, created_at, updated_at`,
             [url_paths, created_ats, updated_ats]
@@ -111,37 +116,37 @@ export class PostDBRepository {
         return result.rows;
     }
 
-    // async update(ids: string[], changes: Partial<{ status: string }>): Promise<ImageRow[]> {
-    //     if (!ids || ids.length === 0) return [];
+    async update(ids: string[], changes: { subject?: string }): Promise<PostRow[]> {
+        if (!ids || ids.length === 0) return [];
 
-    //     const updates: string[] = [];
-    //     const params: any[] = [];
-    //     let paramIndex = 1;
+        const updates: string[] = [];
+        const params: any[] = [];
+        let paramIndex = 1;
 
-    //     if (changes.status !== undefined) {
-    //         updates.push(`status = $${paramIndex++}`);
-    //         params.push(changes.status);
-    //     }
+        if (changes.subject !== undefined) {
+            updates.push(`subject = $${paramIndex++}`);
+            params.push(changes.subject);
+        }
 
-    //     if (updates.length === 0) {
-    //         return (await this.findByIds(ids)) || [];
-    //     }
+        if (updates.length === 0) {
+            return (await this.findByIds(ids)) || [];
+        }
 
-    //     updates.push(`updated_at = $${paramIndex++}`);
-    //     params.push(new Date().toISOString());
+        updates.push(`updated_at = $${paramIndex++}`);
+        params.push(new Date().toISOString());
 
-    //     params.push(ids);
+        params.push(ids);
 
-    //     const sql = `
-    //         UPDATE images 
-    //         SET ${updates.join(', ')} 
-    //         WHERE id = ANY($${paramIndex}::uuid[]) 
-    //         RETURNING id, filename, url_path, status, created_at, updated_at
-    //     `;
+        const sql = `
+            UPDATE post 
+            SET ${updates.join(', ')} 
+            WHERE id = ANY($${paramIndex}::uuid[]) 
+            RETURNING id, url_path, subject, created_at, updated_at
+        `;
 
-    //     const result = await this.pool.query<ImageRow>(sql, params);
-    //     return result.rows;
-    // }
+        const result = await this.pool.query<PostRow>(sql, params);
+        return result.rows;
+    }
 
     async delete(id: number): Promise<boolean> {
         const result = await this.pool.query('DELETE FROM images WHERE id = $1', [id]);

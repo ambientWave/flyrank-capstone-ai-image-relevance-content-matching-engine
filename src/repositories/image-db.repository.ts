@@ -13,7 +13,10 @@ export interface ImageRow {
     id: string;
     filename: string;
     url_path: string;
+    tag?: string | null;
     status: string;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface ImageRowFilter {
@@ -44,17 +47,17 @@ export class ImageDBRepository {
         for (let attempt = 1; attempt <= retries; attempt++) {
             try {
                 await this.pool.query(`
-                    CREATE TABLE IF NOT EXISTS "images" (
+                    CREATE TABLE IF NOT EXISTS "image" (
                         "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         "filename" TEXT NOT NULL,
                         "url_path" TEXT NOT NULL,
-                        "tags" JSONB,
+                        "tag" JSONB,
                         "status" TEXT NOT NULL DEFAULT 'pending',
                         "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
                         "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now()
                     )
                 `);
-                console.log('[Database] images table initialized and ready.');
+                console.log('[Database] image table initialized and ready.');
                 return;
             } catch (err) {
                 console.error(`[Database] Init attempt ${attempt}/${retries} failed. Retrying in ${delayMs / 1000}s...`);
@@ -92,7 +95,7 @@ export class ImageDBRepository {
             params.push(filter.filename.trim());
         }
 
-        let sql = 'SELECT id, filename, url_path, status, created_at, updated_at FROM images';
+        let sql = 'SELECT id, filename, url_path, tag, status, created_at, updated_at FROM image';
         if (conditions.length > 0) {
             sql += ` WHERE ${conditions.join(' AND ')}`;
         }
@@ -104,7 +107,7 @@ export class ImageDBRepository {
 
     async findByIds(ids: string[]): Promise<ImageRow[] | undefined> {
         const result = await this.pool.query<ImageRow>(
-            'SELECT id, filename, url_path, created_at, updated_at FROM images WHERE id = ANY($1::uuid[])',
+            'SELECT id, filename, url_path, tag, status, created_at, updated_at FROM image WHERE id = ANY($1::uuid[])',
             [ids]
         );
         const images: ImageRow[] = [];
@@ -127,7 +130,7 @@ export class ImageDBRepository {
         const updated_ats = images.map(() => new Date().toISOString());
 
         const result = await this.pool.query<ImageRow>(
-            `INSERT INTO images (filename, url_path, status, created_at, updated_at) 
+            `INSERT INTO image (filename, url_path, status, created_at, updated_at) 
              SELECT * FROM UNNEST($1::text[], $2::text[], $3::text[], $4::timestamptz[], $5::timestamptz[])
              RETURNING id, filename, url_path, status, created_at, updated_at`,
             [filenames, url_paths, statuses, created_ats, updated_ats]
@@ -157,7 +160,7 @@ export class ImageDBRepository {
         params.push(ids);
 
         const sql = `
-            UPDATE images 
+            UPDATE image 
             SET ${updates.join(', ')} 
             WHERE id = ANY($${paramIndex}::uuid[]) 
             RETURNING id, filename, url_path, status, created_at, updated_at
@@ -168,7 +171,7 @@ export class ImageDBRepository {
     }
 
     async delete(id: number): Promise<boolean> {
-        const result = await this.pool.query('DELETE FROM images WHERE id = $1', [id]);
+        const result = await this.pool.query('DELETE FROM image WHERE id = $1', [id]);
         return (result.rowCount ?? 0) > 0;
     }
 }
