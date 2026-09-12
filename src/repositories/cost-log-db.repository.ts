@@ -30,7 +30,8 @@ export interface CostLogRowFilter {
 export interface CostLogRepository {
     findAll(): Promise<CostLogRow[]>;
     findById(id: number): Promise<CostLogRow | undefined>;
-    insert(image: CostLogRow): Promise<CostLogRow>;
+    insert(costLog: CostLogRowPreInsertion): Promise<CostLogRow>;
+    insertMany(costLogs: CostLogRowPreInsertion[]): Promise<CostLogRow[]>;
     update(id: number, image: CostLogRow): Promise<CostLogRow | null>;
     delete(id: number): Promise<boolean>;
 }
@@ -51,7 +52,7 @@ export class CostLogDBRepository {
                 await this.pool.query(`
                     CREATE TABLE IF NOT EXISTS cost_log (
                         id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        call_type     TEXT NOT NULL CHECK (call_type in ('vision','embedding')),
+                        call_type     TEXT NOT NULL CHECK (call_type in ('vision','embedding','summarization')),
                         ref_id        UUID NOT NULL,       -- image_id or post_id
                         tokens_or_units NUMERIC NOT NULL,
                         cost_usd      NUMERIC(10,6) NOT NULL,
@@ -129,7 +130,23 @@ export class CostLogDBRepository {
         return costLogs;
     }
 
-    async insert(costLogs: CostLogRowPreInsertion[]): Promise<CostLogRow[]> {
+    async insert(costLog: CostLogRowPreInsertion): Promise<CostLogRow> {
+        const created_at = new Date().toISOString();
+        const updated_at = new Date().toISOString();
+
+        const result = await this.pool.query<CostLogRow>(
+            `INSERT INTO cost_log (call_type, ref_id, tokens_or_units, cost_usd, created_at, updated_at) 
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING id, call_type, ref_id, tokens_or_units, cost_usd, created_at, updated_at`,
+            [costLog.call_type, costLog.ref_id, costLog.tokens_or_units, costLog.cost_usd, created_at, updated_at]
+        );
+        if (!result.rows[0]) {
+            throw new Error('Failed to insert cost log');
+        }
+        return result.rows[0];
+    }
+
+    async insertMany(costLogs: CostLogRowPreInsertion[]): Promise<CostLogRow[]> {
         if (!costLogs || costLogs.length === 0) return [];
 
         const call_types = costLogs.map(i => i.call_type);

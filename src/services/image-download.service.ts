@@ -1,20 +1,16 @@
-import { query, store } from "../repositories/image-download.repository.ts";
-import { type PhotosWithTotalResults, type ErrorResponse } from 'pexels';
-
-async function downloadImagesList(search: string): Promise<void> {
+import { query } from "../repositories/image-download.repository.ts";
+import { type PhotosWithTotalResults, type ErrorResponse, type Photo } from 'pexels';
+/**
+ * downloadImagesList isn't the same as fetchPostsText
+ * There are two methods for /images, GET and POST. That's because we are downloading images from pexels.
+ * However, there is a single POST method for /posts.
+ * @param search 
+ * @returns 
+ */
+async function downloadImagesList(search: string): Promise<{ photos: Photo[] }> {
     const imageList: PhotosWithTotalResults | ErrorResponse = await query(search)
     if ('photos' in imageList) {
-        const imageMap: Map<string, string> = new Map();
-        console.log("imageList", imageList);
-        for (let i = 0; i < imageList.photos.length; i++) {
-            const photo = imageList.photos[i];
-            console.log("photo", photo);
-            // split after photos/
-            // const fileName = element.src.large.split('photos/')[1];
-            // imageMap.set(fileName, element.src.large);
-        }
-        // await store(imageMap);
-        return;
+        return { photos: imageList.photos };
     } else {
         throw new Error(imageList.error);
     }

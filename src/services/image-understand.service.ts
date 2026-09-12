@@ -1,5 +1,8 @@
 import { injectable } from 'tsyringe';
+import { getDataFromUrls } from "../middleware/request-utils.ts";
 import { ImageUnderstandRepository } from "../repositories/image-understand.repository.ts";
+import { ImageDBRepository } from "../repositories/image-db.repository.ts";
+import { CostLogDBRepository } from "../repositories/cost-log-db.repository.ts";
 import { z } from "zod";
 
 export const VisionTagSchema = z.object({
@@ -10,35 +13,37 @@ export const VisionTagSchema = z.object({
     confidence: z.number().min(0).max(1),
 });
 
+export interface ValidatedImageData {
+    id: string;
+    imageUrl: string;
+    caption: string;
+    tags: string[];
+    subject: string;
+    category: string;
+    confidence: number;
+}
 
 @injectable()
 export class ImageUnderstandService {
-    constructor(private imageUnderstandRepo: ImageUnderstandRepository) { }
+    constructor(
+        private imageUnderstandRepo: ImageUnderstandRepository,
+        private imageDBRepository: ImageDBRepository,
+        private costLogDBRepository: CostLogDBRepository
+    ) { }
 
-    // for each image in images folder, read the image and understand it using understand function then validate against schema
-    /**
-     * This function return list of objects like
-        {
-          subject: 'red foxes',
-          category: 'animal',
-          attributes: [ 'red fur', 'wild', 'grazing', 'outdoor', 'grassland' ], // this is what we store as tags in vector database
-          caption: 'Two red foxes walking and foraging in a lush green grassy field during the day.',
-          confidence: 0.98
-        } */
-    async understandImage(imageUrls: string[]): Promise<{ imageUrl: string; response: any }[]> {
-        const results: { imageUrl: string; response: any }[] = [];
-        for (const imageUrl of imageUrls) {
-            let imageData: ArrayBuffer;
-            try {
-                const response = await fetch(imageUrl);
-                if (!response.ok) {
-                    continue;
-                }
-                imageData = await response.arrayBuffer();
-            } catch (error) {
+    async understandImage(imageUrls: string[]): Promise<{ imageUrl: any; response: any }[]> {
+        const results: { imageUrl: any; response: any }[] = [];
+        const imageDatas = await getDataFromUrls(imageUrls, true);
+        if (!imageDatas) {
+            return [];
+        }
+        for (let i = 0; i < imageDatas.length; i++) {
+            const imageUrl = imageUrls[i] as string;
+            const imageData = imageDatas[i]?.content as Buffer<ArrayBuffer>;
+            if (!imageData) {
                 continue;
             }
-            const aiResponse = await this.imageUnderstandRepo.analyzeImage(imageUrl, Buffer.from(imageData));
+            const aiResponse = await this.imageUnderstandRepo.analyzeImage(imageUrl, imageData);
             console.log("understand result", aiResponse);
             if (aiResponse) {
                 results.push({ imageUrl, response: aiResponse });
@@ -70,5 +75,73 @@ export class ImageUnderstandService {
             }
             throw error;
         }
+    }
+
+    async saveImageTags(imageId: string, data: ValidatedImageData): Promise<void> {
+        const tagData = {
+            subject: data.subject,
+            category: data.category,
+            attributes: data.tags,
+            caption: data.caption,
+            confidence: data.confidence,
+            flagged: data.confidence < 0.8,
+            raw_response: JSON.stringify(data),
+        };
+        await this.imageDBRepository.update([imageId], { tag: tagData });
+    }
+
+    async logCost(refId: string, callType: 'vision' | 'embedding', tokensOrUnits: number, costUsd: number): Promise<void> {
+        await this.costLogDBRepository.insert({
+            call_type: callType,
+            ref_id: refId,
+            tokens_or_units: tokensOrUnits,
+            cost_usd: costUsd,
+        });
+    }
+
+    async understandAndProcessImage(imageId: string): Promise<ValidatedImageData | null> {
+        const image = await this.imageDBRepository.findById(imageId);
+        
+        if (!image) {
+            console.log(`Image ${imageId} not found`);
+            return null;
+        }
+
+        if (image.status === 'completed' || image.status === 'embedded') {
+            console.log(`Image ${imageId} already ${image.status}, skipping`);
+            return null;
+        }
+
+        await this.imageDBRepository.update([imageId], { status: 'processing' });
+
+        const aiResponses = await this.understandImage([image.url_path]);
+        if (aiResponses.length === 0 || !aiResponses[0]?.response) {
+            await this.imageDBRepository.update([imageId], { status: 'failed' });
+            return null;
+        }
+
+        const aiResponse = aiResponses[0].response!;
+        const validated = await this.validateSchema(image.url_path, aiResponse);
+        if (validated.error && validated.error !== 'Confidence is low') {
+            await this.imageDBRepository.update([imageId], { status: 'failed' });
+            return null;
+        }
+
+        await this.logCost(imageId, 'vision', 1, 0.000125);
+
+        const imageData: ValidatedImageData = {
+            id: imageId,
+            imageUrl: image.url_path,
+            tags: validated.data.tags,
+            subject: aiResponse.subject,
+            category: aiResponse.category,
+            caption: aiResponse.caption,
+            confidence: aiResponse.confidence,
+        };
+
+        await this.saveImageTags(imageId, imageData);
+        await this.imageDBRepository.update([imageId], { status: 'completed' });
+
+        return imageData;
     }
 }

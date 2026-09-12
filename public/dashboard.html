@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Image Understanding Dashboard</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <div class="header-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 17" />
+        </svg>
+        <span>Image Understanding</span>
+      </div>
+      <nav class="nav">
+        <a href="/dashboard.html" class="nav-link active">Dashboard</a>
+        <a href="/jobs.html" class="nav-link">Jobs</a>
+        <a href="/images.html" class="nav-link">Images</a>
+        <a href="/posts.html" class="nav-link">Posts</a>
+        <a href="/ranking.html" class="nav-link">Ranking</a>
+      </nav>
+    </header>
+
+    <main class="main" id="app">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle">System overview and cost tracking</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" id="refreshBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-label">Total Images Processed</div>
+          <div class="stat-value accent" id="statImages">—</div>
+          <div class="stat-trend" id="statImagesTrend">Loading...</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Posts Processed</div>
+          <div class="stat-value" id="statPosts">—</div>
+          <div class="stat-trend" id="statPostsTrend">Loading...</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Cost (24h)</div>
+          <div class="stat-value warning" id="statCost24h">—</div>
+          <div class="stat-trend" id="statCostTrend">Loading...</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Avg Cost per Image</div>
+          <div class="stat-value" id="statAvgCost">—</div>
+          <div class="stat-trend" id="statAvgCostTrend">Loading...</div>
+        </div>
+      </div>
+
+      <!-- Cost Log Filters -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="card-title">Cost Log</h2>
+          <div class="flex gap-4 items-center flex-wrap">
+            <div class="form-group" style="margin: 0; min-width: 200px;">
+              <label class="form-label">Call Type</label>
+              <select class="form-select" id="filterCallType">
+                <option value="">All Types</option>
+                <option value="vision">Vision</option>
+                <option value="embedding">Embedding</option>
+                <option value="summarization">Summarization</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin: 0; min-width: 180px;">
+              <label class="form-label">Time Range</label>
+              <select class="form-select" id="filterTimeRange">
+                <option value="1h">Last Hour</option>
+                <option value="24h" selected>Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin: 0; min-width: 150px;">
+              <label class="form-label">Limit</label>
+              <select class="form-select" id="filterLimit">
+                <option value="50">50</option>
+                <option value="100" selected>100</option>
+                <option value="200">200</option>
+                <option value="500">500</option>
+              </select>
+            </div>
+            <button class="btn btn-secondary" id="applyFiltersBtn">Apply</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="table cost-table" id="costTable">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Call Type</th>
+                  <th>Ref ID</th>
+                  <th>Tokens/Units</th>
+                  <th class="text-right">Cost (USD)</th>
+                </tr>
+              </thead>
+              <tbody id="costTableBody">
+                <tr>
+                  <td colspan="5" class="text-center loading">
+                    <div class="spinner"></div>Loading cost log...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="card-footer">
+            <span id="costTableInfo" class="text-center"
+              style="flex: 1; color: var(--fg-muted); font-size: 0.8125rem;"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Recent Activity</h2>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="table" id="activityTable">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Type</th>
+                  <th>Resource</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="activityTableBody">
+                <tr>
+                  <td colspan="5" class="text-center loading">
+                    <div class="spinner"></div>Loading activity...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { api } from '/js/api.js';
+
+    const state = { costLog: [], activity: [] };
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      return d.toLocaleString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit', month: 'short', day: 'numeric' });
+    }
+
+    function formatCost(cost) {
+      return '$' + Number(cost).toFixed(6);
+    }
+
+    function formatNumber(num) {
+      return new Intl.NumberFormat().format(num);
+    }
+
+    async function loadStats() {
+      try {
+        // We'll compute stats from cost log since there's no dedicated stats endpoint
+        const res = await api.getCostLog({ limit: 1000, timeRange: '24h' });
+        const logs = res.data || res.logs || res;
+
+        const visionLogs = logs.filter(l => l.call_type === 'vision');
+        const embedLogs = logs.filter(l => l.call_type === 'embedding');
+        const summarizeLogs = logs.filter(l => l.call_type === 'summarization');
+
+        const totalCost = logs.reduce((sum, l) => sum + Number(l.cost_usd || 0), 0);
+        const visionCost = visionLogs.reduce((sum, l) => sum + Number(l.cost_usd || 0), 0);
+        const avgVisionCost = visionLogs.length ? visionCost / visionLogs.length : 0;
+
+        document.getElementById('statImages').textContent = formatNumber(visionLogs.length);
+        document.getElementById('statImagesTrend').textContent = `${visionLogs.length} vision calls`;
+        document.getElementById('statPosts').textContent = formatNumber(summarizeLogs.length);
+        document.getElementById('statPostsTrend').textContent = `${summarizeLogs.length} summarizations`;
+        document.getElementById('statCost24h').textContent = formatCost(totalCost);
+        document.getElementById('statCostTrend').textContent = `Vision: ${formatCost(visionCost)}, Embed: ${formatCost(embedLogs.reduce((s, l) => s + Number(l.cost_usd || 0), 0))}`;
+        document.getElementById('statAvgCost').textContent = formatCost(avgVisionCost);
+        document.getElementById('statAvgCostTrend').textContent = 'Per vision call';
+      } catch (e) {
+        console.error('Failed to load stats:', e);
+        document.getElementById('statImages').textContent = 'Error';
+        document.getElementById('statPosts').textContent = 'Error';
+        document.getElementById('statCost24h').textContent = 'Error';
+        document.getElementById('statAvgCost').textContent = 'Error';
+      }
+    }
+
+    async function loadCostLog() {
+      const callType = document.getElementById('filterCallType').value;
+      const timeRange = document.getElementById('filterTimeRange').value;
+      const limit = document.getElementById('filterLimit').value;
+
+      const tbody = document.getElementById('costTableBody');
+      const info = document.getElementById('costTableInfo');
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center loading"><div class="spinner"></div>Loading...</td></tr>';
+
+      try {
+        const res = await api.getCostLog({ callType, timeRange, limit });
+        const logs = res.data || res.logs || res;
+        state.costLog = logs;
+
+        if (!logs.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg><p class="empty-state-title">No cost records</p><p class="empty-state-desc">No cost log entries match the current filters.</p></div></td></tr>';
+          info.textContent = '0 records';
+          return;
+        }
+
+        tbody.innerHTML = logs.map(log => `
+      <tr>
+        <td>${formatTime(log.created_at)}</td>
+        <td><span class="badge badge-${log.call_type === 'vision' ? 'processing' : log.call_type === 'embedding' ? 'embedding' : 'summarizing'}">${log.call_type}</span></td>
+        <td class="mono">${log.ref_id.slice(0, 8)}…</td>
+        <td class="mono">${formatNumber(log.tokens_or_units)}</td>
+        <td class="text-right cost-amount">${formatCost(log.cost_usd)}</td>
+      </tr>
+    `).join('');
+
+        info.textContent = `${logs.length} record${logs.length !== 1 ? 's' : ''}`;
+      } catch (e) {
+        console.error('Failed to load cost log:', e);
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center empty-state"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p class="empty-state-title">Failed to load</p><p class="empty-state-desc">${e.message}</p></div></td></tr>`;
+        info.textContent = 'Error';
+      }
+    }
+
+    async function loadActivity() {
+      const tbody = document.getElementById('activityTableBody');
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center loading"><div class="spinner"></div>Loading...</td></tr>';
+
+      try {
+        // We'll use cost log as activity proxy since no dedicated activity endpoint
+        const res = await api.getCostLog({ limit: 20, timeRange: '24h' });
+        const logs = res.data || res.logs || res;
+
+        if (!logs.length) {
+          tbody.innerHTML = '<tr><td colspan="5" class="text-center empty-state"><div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/></svg><p class="empty-state-title">No recent activity</p></div></td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = logs.slice(0, 20).map(log => `
+      <tr>
+        <td>${formatTime(log.created_at)}</td>
+        <td>${log.call_type}</td>
+        <td class="mono">${log.ref_id.slice(0, 8)}…</td>
+        <td><span class="badge badge-completed">Logged</span></td>
+        <td>${formatNumber(log.tokens_or_units)} units • ${formatCost(log.cost_usd)}</td>
+      </tr>
+    `).join('');
+      } catch (e) {
+        console.error('Failed to load activity:', e);
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center empty-state"><div class="empty-state"><p class="empty-state-title">Failed to load</p><p class="empty-state-desc">${e.message}</p></div></td></tr>`;
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadStats();
+      loadCostLog();
+      loadActivity();
+    });
+
+    document.getElementById('applyFiltersBtn').addEventListener('click', loadCostLog);
+
+    // Enter key on selects
+    ['filterCallType', 'filterTimeRange', 'filterLimit'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') loadCostLog();
+      });
+    });
+
+    // Initial load
+    loadStats();
+    loadCostLog();
+    loadActivity();
+
+    // Auto-refresh every 30 seconds
+    setInterval(() => {
+      loadStats();
+      loadCostLog();
+      loadActivity();
+    }, 30000);
+  </script>
+</body>
+
+</html>

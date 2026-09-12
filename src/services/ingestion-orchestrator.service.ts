@@ -1,18 +1,26 @@
 import { injectable } from 'tsyringe';
 import { ImageDBRepository } from '../repositories/image-db.repository.ts';
+import { PostDBRepository } from '../repositories/post-db.repository.ts';
 import { ImageEmbedService } from './image-embed.service.ts';
 import { TextEmbedService } from './text-embed.service.ts';
+import { PostEmbedService } from './post-embed.service.ts';
 import { JobQueueService } from './job-queue.service.ts';
-import { ImageUnderstandService } from './image-understand.service.ts';
+import { ImageUnderstandService, type ValidatedImageData } from './image-understand.service.ts';
+import { PostDownloadService } from './post-download.service.ts';
+import { PostSummarizeService } from './post-summarize.service.ts';
 
 @injectable()
 export class IngestionOrchestratorService {
     constructor(
         private imageDBRepository: ImageDBRepository,
+        private postDBRepository: PostDBRepository,
         private imageEmbedService: ImageEmbedService,
         private textEmbedService: TextEmbedService,
+        private postEmbedService: PostEmbedService,
         private jobQueueService: JobQueueService,
-        private imageUnderstandService: ImageUnderstandService
+        private imageUnderstandService: ImageUnderstandService,
+        private postDownloadService: PostDownloadService,
+        private postSummarizeService: PostSummarizeService
     ) { }
 
     async enqueueIngestionPipeline(urls: string[]): Promise<{ batchId: string; count: number }> {
@@ -28,33 +36,41 @@ export class IngestionOrchestratorService {
         return { batchId: crypto.randomUUID(), count: images.length };
     }
 
-    async onImageUnderstandComplete(validatedImageData: { id: string, imageUrl: string, caption: string, tags: string[] }[]) {
+    async onImageUnderstandComplete(validatedImageData: ValidatedImageData[]) {
+        const imageIds = validatedImageData.map(d => d.id);
+
         await this.imageEmbedService.embedImagesFromUrls(validatedImageData.map(d => ({ imageUrl: d.imageUrl, tags: d.tags })));
 
-        await this.textEmbedService.embedImageCaptions(validatedImageData.map(d => ({ imageUrl: d.imageUrl, tags: d.tags })));
-        await this.imageDBRepository.update(
-            validatedImageData.map(d => d.id),
-            'embedded'
-        );
-
+        await this.jobQueueService.addEmbedJobs(imageIds, 'image');
     }
 
+    async enqueuePostPipeline(postUrls: string[]): Promise<{ batchId: string; count: number }> {
+        const postsText = await this.postDownloadService.fetchPostsText(postUrls);
 
-    async enqueuePostPipeline(posts: { title: string, body: string }[]): Promise<{ count: number }> {
-        const rows = await this.postDBRepository.insert(posts.map(p => ({ ...p, status: 'pending' })));
-        await this.jobQueueService.addPostUnderstandJobs(rows.map(p => p.id));
-        return { count: rows.length };
+        const posts = await this.postDBRepository.insert(postsText.map(p => ({
+            filename: p.url.substring(p.url.lastIndexOf('/') + 1),
+            url_path: p.url,
+            status: 'pending'
+        })));
+        const postIds = posts.map(p => p.id);
+
+        await this.jobQueueService.addPostSummarizeJobs(postIds);
+
+        return { batchId: crypto.randomUUID(), count: posts.length };
     }
 
-    async onPostSummarizeComplete(postId: string, subject: { subject: string, category: string }) {
-        await this.postDBRepository.saveSubject(postId, subject);
-        await this.textEmbedService.embedPost(postId);
-        await this.postDBRepository.update(postId, 'embedded');
+    async onPostSummarizeComplete(postId: string, summary: string): Promise<void> {
+        const post = await this.postDBRepository.findById(postId);
+        if (!post) {
+            throw new Error(`Post ${postId} not found`);
+        }
 
-        // await this.onPostReady(postId);   // chains straight in, one owner of the sequencing
+        // Title is extracted from the post content during download
+        await this.postSummarizeService.saveSummary(postId, summary);
+        await this.jobQueueService.addEmbedJobs([postId], 'post');
     }
 
-    // async onPostReady(postId: string) {
-    //     await this.guardService.evaluateMatch(postId);
-    // }
+    async onPostEmbedComplete(postId: string): Promise<void> {
+        await this.postDBRepository.update([postId], { status: 'embedded' });
+    }
 }

@@ -3,8 +3,13 @@ seed: npm run seed
 test: npm run test
 base_url: http://localhost:3000
 endpoints:
+  - POST /images
+  - GET /download/images
+  - GET /jobs/:queue/:id
+  - POST /posts
   - GET /posts/:id/images
-  - POST /suggestions/:id/approve
-  - POST /suggestions/:id/reject
-  - GET /admin/cost-log
-  - GET /admin/eval
+  # planned
+  # - POST /suggestions/:id/approve
+  # - POST /suggestions/:id/reject
+  # - GET /admin/cost-log
+  # - GET /admin/eval

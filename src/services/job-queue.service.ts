@@ -15,8 +15,9 @@ import { injectable } from 'tsyringe';
 import { Queue } from 'bullmq';
 import { redisConfig } from '../config/redis.ts';
 
-const visionQueue = new Queue('vision', { connection: redisConfig }); // the name should be identifier and same as the name used in worker.ts
+const visionQueue = new Queue('vision', { connection: redisConfig });
 const textEmbedQueue = new Queue('text-embed', { connection: redisConfig });
+const postSummarizeQueue = new Queue('post-summarize', { connection: redisConfig });
 
 /**Simpler, fewer moving parts, genuinely fine for a lot of pipelines.
  * I'd still keep them separate for this specific project,
@@ -47,20 +48,20 @@ export class JobQueueService {
                 data: { imageId: id },
                 opts: {
                     jobId: id,
-                    attempts: 3,  // retries
-                    backoff: { type: 'exponential', delay: 5000 }, // increasing delay between retries
-                    removeOnComplete: 100, // keep last 100 completed jobs (to avoid memory leak in redis). 101st job will evict 1st job
-                    removeOnFail: 50 // keep last 50 failed jobs (to debug)
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 5000 },
+                    removeOnComplete: 100,
+                    removeOnFail: 50
                 }
             }))
         );
     }
 
-    async addEmbedJobs(imageIds: string[]): Promise<void> {
+    async addEmbedJobs(ids: string[], type: 'image' | 'post' = 'image'): Promise<void> {
         await textEmbedQueue.addBulk(
-            imageIds.map(id => ({
-                name: "embed-image-caption",
-                data: { imageId: id },
+            ids.map(id => ({
+                name: type === 'image' ? "embed-image-caption" : "embed-post-summary",
+                data: type === 'image' ? { imageId: id } : { postId: id },
                 opts: {
                     jobId: id,
                     attempts: 3,
@@ -72,9 +73,79 @@ export class JobQueueService {
         );
     }
 
-    async getJobStatus(queue: "vision" | "embed", id: string): Promise<string> {
-        const targetQueue = queue === "vision" ? visionQueue : textEmbedQueue;
+    async addPostSummarizeJobs(postIds: string[]): Promise<void> {
+        await postSummarizeQueue.addBulk(
+            postIds.map(id => ({
+                name: 'summarize-post',
+                data: { postId: id },
+                opts: {
+                    jobId: id,
+                    attempts: 3,
+                    backoff: { type: 'exponential', delay: 5000 },
+                    removeOnComplete: 100,
+                    removeOnFail: 50
+                }
+            }))
+        );
+    }
+
+    async getJobStatus(queue: "vision" | "embed" | "post-summarize", id: string): Promise<string> {
+        let targetQueue: Queue;
+        switch (queue) {
+            case "vision":
+                targetQueue = visionQueue;
+                break;
+            case "embed":
+                targetQueue = textEmbedQueue;
+                break;
+            case "post-summarize":
+                targetQueue = postSummarizeQueue;
+                break;
+            default:
+                return "not_queued";
+        }
         const job = await targetQueue.getJob(id);
         return job ? await job.getState() : "not_queued";
+    }
+
+    async getAllJobs(queue?: "vision" | "embed" | "post-summarize", status?: string, limit = 100): Promise<any[]> {
+        const queuesToCheck = queue ? [queue] : ["vision", "embed", "post-summarize"];
+        const allJobs: any[] = [];
+
+        for (const q of queuesToCheck) {
+            const targetQueue = q === "vision" ? visionQueue : q === "embed" ? textEmbedQueue : postSummarizeQueue;
+            
+            // Get jobs from different statuses
+            const statusesToCheck = status ? [status] : ["waiting", "active", "completed", "failed", "delayed"];
+            
+            for (const s of statusesToCheck) {
+                const jobs = await targetQueue.getJobs([s], 0, limit - 1);
+                for (const job of jobs) {
+                    const state = await job.getState();
+                    if (status && state !== status) continue;
+                    allJobs.push({
+                        jobId: job.id,
+                        id: job.id,
+                        queue: q,
+                        name: job.name,
+                        data: job.data,
+                        status: state,
+                        progress: job.progress,
+                        attemptsMade: job.attemptsMade,
+                        opts: job.opts,
+                        timestamp: job.timestamp,
+                        processedOn: job.processedOn,
+                        finishedOn: job.finishedOn,
+                        failedReason: job.failedReason,
+                        returnvalue: job.returnvalue
+                    });
+                }
+            }
+        }
+
+        // Sort by timestamp descending (newest first)
+        allJobs.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        
+        return allJobs.slice(0, limit);
     }
 }

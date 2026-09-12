@@ -1,20 +1,32 @@
 import 'reflect-metadata';
 import { container } from './config/container.ts';
 import express, { type Express } from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import imageRoutes from './routes/image.routes.ts';
-import { ImageDBRepository } from './repositories/image-db.repository.ts';
+import postRoutes from './routes/post.routes.ts';
+import jobRoutes from './routes/job.routes.ts';
+import costLogRoutes from './routes/cost-log.routes.ts';
+import { DatabaseInitializerService } from './services/database-initializer.service.ts';
 import { visionWorker } from './workers/image-understand.worker.ts';
 import { textEmbedWorker } from './workers/text-embed.worker.ts';
+import { postSummarizeWorker } from './workers/post-summarize.worker.ts';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const app: Express = express();
 app.use(express.json());
 
-// Initialize DB (creates tables)
-const imageDBRepository = container.resolve('ImageDBRepository') as ImageDBRepository;
-await imageDBRepository.initDB();
+// Serve static frontend files
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Initialize DB (creates all tables via consolidated initializer)
+const databaseInitializer = container.resolve('DatabaseInitializerService') as DatabaseInitializerService;
+await databaseInitializer.initializeAll();
 
 // Start workers
 
@@ -33,75 +45,33 @@ textEmbedWorker().then(worker => {
     worker.on('error', err => console.error('Text embed worker error:', err));
 });
 
-app.use('/', imageRoutes);
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
+postSummarizeWorker().then(worker => {
+    console.log('Post summarize worker started');
+    worker.on('error', err => console.error('Post summarize worker error:', err));
 });
 
-/**import express, { type Express } from 'express';
-import imageRoutes from './routes/image.routes.ts';
-import { ImageEmbedService } from './services/image-embed.service.ts';
-import { TextEmbedService } from './services/text-embed.service.ts';
-import dotenv from 'dotenv';
-import { ImageDBRepository } from './repositories/image-db.repository.ts';
-import { visionWorker } from './workers/image-understand.worker.ts';
-import { textEmbedWorker } from './workers/text-embed.worker.ts';
-
-dotenv.config();
-
-const app: Express = express();
-app.use(express.json());
-
-const imageEmbedService = new ImageEmbedService();
-app.set('imageEmbedService', imageEmbedService);
-
-const textEmbedService = new TextEmbedService();
-app.set('textEmbedService', textEmbedService);
-
-const imageDBRepository = new ImageDBRepository();
-await imageDBRepository.initDB();
-app.set('imageDBRepository', imageDBRepository);
-
 app.use('/', imageRoutes);
+app.use('/', postRoutes);
+app.use('/', jobRoutes);
+app.use('/', costLogRoutes);
 
-visionWorker(app).then(worker => {
-    console.log('Vision worker started');
-    worker.on('error', err => console.error('Vision worker error:', err));
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-textEmbedWorker(app).then(worker => {
-    console.log('Text embed worker started');
-    worker.on('error', err => console.error('Text embed worker error:', err));
+// SPA fallback - serve dashboard.html for frontend routes
+const frontendRoutes = ['/dashboard', '/jobs', '/images', '/posts', '/ranking'];
+app.get(/^\/(dashboard|jobs|images|posts|ranking)(?:\/.*)?$/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
+    console.log(`Dashboard: http://localhost:${PORT}/dashboard.html`);
+    console.log(`Jobs: http://localhost:${PORT}/jobs.html`);
+    console.log(`Images: http://localhost:${PORT}/images.html`);
+    console.log(`Posts: http://localhost:${PORT}/posts.html`);
+    console.log(`Ranking: http://localhost:${PORT}/ranking.html`);
 });
-
-/**import express, { type Express } from 'express';
-import imageRoutes from './routes/image.routes.ts';
-import { ImageEmbedService } from './services/image-embed.service.ts';
-import { TextEmbedService } from './services/text-embed.service.ts';
-import dotenv from 'dotenv';
-import { ImageDBRepository } from './repositories/image-db.repository.ts';
-
-dotenv.config();
-
-const app: Express = express();
-app.use(express.json());
-//need to instantiate image-embed.service (this, by itself, instantiates its repository) so that it stores the state of the collections, and embeddings
-// we need to use the same model for embedding image and post vectors because the cosine similarity only works when the vectors are generated using the same model
-const imageEmbedService = new ImageEmbedService();
-app.set('imageEmbedService', imageEmbedService);
-const textEmbedService = new TextEmbedService();
-app.set('textEmbedService', textEmbedService);
-const imageDBRepository = new ImageDBRepository();
-app.set('imageDBRepository', imageDBRepository);
-app.use('/', imageRoutes);
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-}); */

@@ -57,8 +57,8 @@ export class SuggestionDBRepository {
                 await this.pool.query(`
                     CREATE TABLE IF NOT EXISTS suggestion (
                         id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        post_id         UUID NOT NULL REFERENCES posts(id) ON delete cascade,
-                        image_id        UUID REFERENCES images(id) ON DELETE SET NULL, -- null = "no confident match"
+                        post_id         UUID NOT NULL REFERENCES "post"(id) ON DELETE CASCADE,
+                        image_id        UUID REFERENCES "image"(id) ON DELETE SET NULL, -- null = "no confident match"
                         similarity      NUMERIC(5,4),
                         guard_decision  TEXT NOT NULL CHECK (guard_decision IN ('accepted','rejected','no_match')),
                         reason          TEXT NOT NULL,

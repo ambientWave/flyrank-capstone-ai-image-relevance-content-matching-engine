@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Active Jobs - Image Understanding</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <div class="header-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 17" />
+        </svg>
+        <span>Image Understanding</span>
+      </div>
+      <nav class="nav">
+        <a href="/dashboard.html" class="nav-link">Dashboard</a>
+        <a href="/jobs.html" class="nav-link active">Jobs</a>
+        <a href="/images.html" class="nav-link">Images</a>
+        <a href="/posts.html" class="nav-link">Posts</a>
+        <a href="/ranking.html" class="nav-link">Ranking</a>
+      </nav>
+    </header>
+
+    <main class="main" id="app">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Active Jobs</h1>
+          <p class="page-subtitle">Monitor and manage processing jobs across all queues</p>
+        </div>
+        <div class="page-actions">
+          <div class="view-toggle" role="group" aria-label="View mode">
+            <button class="btn btn-secondary active" data-view="tree" aria-pressed="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="3" x2="21" y2="21" />
+                <path d="M21 3H3v18h18" />
+              </svg>
+              Tree Table
+            </button>
+            <button class="btn btn-secondary" data-view="kanban" aria-pressed="false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+              Kanban
+            </button>
+          </div>
+          <button class="btn btn-primary" id="refreshBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Queue Filter Tabs -->
+      <div class="tabs" id="queueTabs" role="tablist">
+        <button class="tab active" data-queue="all" role="tab" aria-selected="true">All Queues</button>
+        <button class="tab" data-queue="vision" role="tab" aria-selected="false">Vision</button>
+        <button class="tab" data-queue="embed" role="tab" aria-selected="false">Embed</button>
+        <button class="tab" data-queue="post-summarize" role="tab" aria-selected="false">Post Summarize</button>
+      </div>
+
+      <!-- Tree Table View -->
+      <div class="card" id="treeView" style="display: block;">
+        <div class="card-header">
+          <h2 class="card-title">Job Tree Table</h2>
+          <div class="flex gap-4 items-center">
+            <label class="form-label" style="margin: 0;">Filter:</label>
+            <select class="form-select" id="treeStatusFilter" style="width: auto; min-width: 160px;">
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="processing">Processing</option>
+              <option value="completed">Completed</option>
+              <option value="embedding">Embedding</option>
+              <option value="embedded">Embedded</option>
+              <option value="summarizing">Summarizing</option>
+              <option value="summarized">Summarized</option>
+              <option value="failed">Failed</option>
+              <option value="low_confidence">Low Confidence</option>
+            </select>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="tree-table" id="treeTable">
+              <thead>
+                <tr>
+                  <th style="width: 300px;">Job ID / Image URL</th>
+                  <th style="width: 120px;">Queue</th>
+                  <th style="width: 130px;">Status</th>
+                  <th style="width: 180px;">Created</th>
+                  <th style="width: 180px;">Updated</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="treeTableBody">
+                <tr>
+                  <td colspan="6" class="text-center loading">
+                    <div class="spinner"></div>Loading jobs...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Kanban View -->
+      <div class="card" id="kanbanView" style="display: none;">
+        <div class="card-header">
+          <h2 class="card-title">Kanban Board</h2>
+          <span class="text-center" style="color: var(--fg-muted); font-size: 0.8125rem;" id="kanbanSummary"></span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div class="kanban-board" id="kanbanBoard">
+            <!-- Columns rendered dynamically -->
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Job Detail Modal -->
+  <div class="modal-overlay" id="jobModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title" id="modalTitle">Job Details</h3>
+        <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <div class="loading">
+          <div class="spinner"></div>Loading...
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modalCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api } from '/js/api.js';
+
+    const QUEUES = ['vision', 'embed', 'post-summarize'];
+    const STATUSES = ['pending', 'processing', 'completed', 'embedding', 'embedded', 'summarizing', 'summarized', 'failed', 'low_confidence'];
+
+    const state = {
+      jobs: [],
+      currentView: 'tree',
+      currentQueue: 'all',
+      statusFilter: ''
+    };
+
+    const statusLabels = {
+      vision: 'Vision',
+      embed: 'Embed',
+      'post-summarize': 'Post Summarize'
+    };
+
+    const statusColors = {
+      pending: 'pending',
+      processing: 'processing',
+      completed: 'completed',
+      embedding: 'embedding',
+      embedded: 'embedded',
+      summarizing: 'summarizing',
+      summarized: 'summarized',
+      failed: 'failed',
+      low_confidence: 'low_confidence'
+    };
+
+    async function fetchAllJobs() {
+      const params = { limit: 200 };
+      if (state.currentQueue !== 'all') params.queue = state.currentQueue;
+      if (state.statusFilter) params.status = state.statusFilter;
+      
+      console.log('Fetching jobs with params:', params);
+      const res = await api.getAllJobs(params);
+      console.log('Jobs response:', res);
+      state.jobs = res.jobs || res || [];
+    }
+
+    function getAllJobsFlat() {
+      return state.jobs; // Already flat array with queue property
+    }
+
+    function getFilteredJobs() {
+      let jobs = getAllJobsFlat();
+
+      // Queue and status are already filtered by API when not 'all'
+      // But we still filter locally for status when viewing 'all' queues
+      if (state.currentQueue === 'all' && state.statusFilter) {
+        jobs = jobs.filter(j => j.status === state.statusFilter);
+      }
+      return jobs;
+    }
+
+    function renderTreeTable() {
+      const jobs = getFilteredJobs();
+      const tbody = document.getElementById('treeTableBody');
+
+      if (!jobs.length) {
+        tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="text-center empty-state">
+          <div class="empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+            <p class="empty-state-title">No jobs found</p>
+            <p class="empty-state-desc">Try adjusting your filters or check back later.</p>
+          </div>
+        </td>
+      </tr>
+    `;
+        return;
+      }
+
+      tbody.innerHTML = jobs.map(job => `
+    <tr data-job-id="${job.jobId || job.id}" data-queue="${job.queue}" style="cursor: pointer;">
+      <td class="tree-cell">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="mono">${(job.jobId || job.id || '').slice(0, 12)}…</span>
+          ${job.data?.imageUrl ? `<span class="mono" style="color: var(--fg-subtle); font-size: 0.6875rem;">${job.data.imageUrl.slice(0, 50)}…</span>` : ''}
+          ${job.data?.postUrl ? `<span class="mono" style="color: var(--fg-subtle); font-size: 0.6875rem;">${job.data.postUrl.slice(0, 50)}…</span>` : ''}
+        </div>
+      </td>
+      <td><span class="badge badge-${statusColors[job.queue] || 'pending'}">${statusLabels[job.queue] || job.queue}</span></td>
+      <td><span class="badge badge-${statusColors[job.status] || 'pending'}">${job.status.replace('_', ' ')}</span></td>
+      <td class="mono">${job.timestamp ? new Date(job.timestamp).toLocaleString() : '—'}</td>
+      <td class="mono">${job.updatedAt ? new Date(job.updatedAt).toLocaleString() : job.finishedOn ? new Date(job.finishedOn).toLocaleString() : '—'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm btn-icon" data-action="view" data-job-id="${job.jobId || job.id}" data-queue="${job.queue}" title="View details">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+      // Add click handlers
+      tbody.querySelectorAll('[data-action="view"]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showJobModal(btn.dataset.jobId, btn.dataset.queue);
+        });
+      });
+
+      // Row click
+      tbody.querySelectorAll('tr[data-job-id]').forEach(row => {
+        row.addEventListener('click', () => {
+          showJobModal(row.dataset.jobId, row.dataset.queue);
+        });
+      });
+    }
+
+    function renderKanban() {
+      const jobs = getFilteredJobs();
+      const board = document.getElementById('kanbanBoard');
+      const summary = document.getElementById('kanbanSummary');
+
+      // Group by status
+      const grouped = {};
+      STATUSES.forEach(s => grouped[s] = []);
+      jobs.forEach(job => {
+        const status = job.status || 'pending';
+        if (grouped[status]) grouped[status].push(job);
+        else grouped['pending'].push(job);
+      });
+
+      const totalJobs = jobs.length;
+      summary.textContent = `${totalJobs} job${totalJobs !== 1 ? 's' : ''}`;
+
+      // Only show columns that have jobs or are relevant
+      const activeStatuses = STATUSES.filter(s => grouped[s].length > 0 || ['pending', 'processing', 'completed', 'failed'].includes(s));
+
+      board.innerHTML = activeStatuses.map(status => {
+        const columnJobs = grouped[status];
+        return `
+      <div class="kanban-column tasks-${status}" data-status="${status}">
+        <div class="kanban-column-header">
+          <span>${status.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+          <span class="kanban-count">${columnJobs.length}</span>
+        </div>
+        <div class="kanban-cards" data-status="${status}">
+          ${columnJobs.length === 0 ? '<div class="empty-state" style="padding: 20px 12px; font-size: 0.75rem; color: var(--fg-subtle);">No jobs</div>' : ''}
+          ${columnJobs.map(job => `
+            <div class="kanban-card" data-job-id="${job.jobId || job.id}" data-queue="${job.queue}">
+              <div class="kanban-card-header">
+                <span class="kanban-card-id">${(job.jobId || job.id || '').slice(0, 12)}…</span>
+                <span class="badge badge-${statusColors[job.queue] || 'pending'}">${statusLabels[job.queue] || job.queue}</span>
+              </div>
+              ${job.data?.imageUrl ? `<div class="kanban-card-url">${job.data.imageUrl}</div>` : ''}
+              ${job.data?.postUrl ? `<div class="kanban-card-url">${job.data.postUrl}</div>` : ''}
+              <div class="kanban-card-meta">
+                <span>Created: ${job.timestamp ? new Date(job.timestamp).toLocaleTimeString() : '—'}</span>
+                ${job.attemptsMade !== undefined ? `<span>Attempt: ${job.attemptsMade + 1}/${job.opts?.attempts || 3}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+      }).join('');
+
+      // Add click handlers
+      board.querySelectorAll('.kanban-card[data-job-id]').forEach(card => {
+        card.addEventListener('click', () => {
+          showJobModal(card.dataset.jobId, card.dataset.queue);
+        });
+      });
+    }
+
+    async function showJobModal(jobId, queue) {
+      const modal = document.getElementById('jobModal');
+      const body = document.getElementById('modalBody');
+      const title = document.getElementById('modalTitle');
+
+      modal.classList.add('open');
+      body.innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+      title.textContent = `Job ${jobId.slice(0, 12)}…`;
+
+      try {
+        const job = await api.getJobStatus(queue, jobId);
+        body.innerHTML = `
+      <dl style="display: grid; grid-template-columns: 140px 1fr; gap: 8px 16px; font-size: 0.8125rem;">
+        <dt style="color: var(--fg-muted);">Job ID</dt>
+        <dd class="mono" style="word-break: break-all;">${jobId}</dd>
+        <dt style="color: var(--fg-muted);">Queue</dt>
+        <dd><span class="badge badge-${statusColors[queue] || 'pending'}">${statusLabels[queue] || queue}</span></dd>
+        <dt style="color: var(--fg-muted);">Status</dt>
+        <dd><span class="badge badge-${statusColors[job.status] || 'pending'}">${job.status}</span></dd>
+        <dt style="color: var(--fg-muted);">Progress</dt>
+        <dd>${job.progress !== undefined ? `${job.progress}%` : '—'}</dd>
+        <dt style="color: var(--fg-muted);">Attempts</dt>
+        <dd>${job.attemptsMade !== undefined ? `${job.attemptsMade + 1} / ${job.opts?.attempts || 3}` : '—'}</dd>
+        <dt style="color: var(--fg-muted);">Created</dt>
+        <dd>${job.timestamp ? new Date(job.timestamp).toLocaleString() : '—'}</dd>
+        <dt style="color: var(--fg-muted);">Started</dt>
+        <dd>${job.processedOn ? new Date(job.processedOn).toLocaleString() : '—'}</dd>
+        <dt style="color: var(--fg-muted);">Finished</dt>
+        <dd>${job.finishedOn ? new Date(job.finishedOn).toLocaleString() : '—'}</dd>
+        <dt style="color: var(--fg-muted);">Data</dt>
+        <dd><pre style="background: var(--bg); padding: 12px; border-radius: var(--radius); font-size: 0.6875rem; max-height: 200px; overflow: auto;">${JSON.stringify(job.data, null, 2)}</pre></dd>
+        ${job.returnvalue ? `<dt style="color: var(--fg-muted);">Result</dt><dd><pre style="background: var(--bg); padding: 12px; border-radius: var(--radius); font-size: 0.6875rem; max-height: 200px; overflow: auto;">${JSON.stringify(job.returnvalue, null, 2)}</pre></dd>` : ''}
+        ${job.failedReason ? `<dt style="color: var(--danger);">Error</dt><dd style="color: var(--danger); font-family: var(--font-mono); font-size: 0.6875rem;">${job.failedReason}</dd>` : ''}
+      </dl>
+    `;
+      } catch (e) {
+        body.innerHTML = `<div class="empty-state"><p class="empty-state-title">Failed to load</p><p class="empty-state-desc">${e.message}</p></div>`;
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('jobModal').classList.remove('open');
+    }
+
+    function setView(view) {
+      state.currentView = view;
+      document.getElementById('treeView').style.display = view === 'tree' ? 'block' : 'none';
+      document.getElementById('kanbanView').style.display = view === 'kanban' ? 'block' : 'none';
+      document.querySelectorAll('.view-toggle .btn').forEach(btn => {
+        const isActive = btn.dataset.view === view;
+        btn.classList.toggle('active', isActive);
+        btn.classList.toggle('btn-secondary', !isActive);
+        btn.classList.toggle('btn-primary', isActive);
+        btn.setAttribute('aria-pressed', isActive);
+      });
+      if (view === 'tree') renderTreeTable();
+      else renderKanban();
+    }
+
+    async function setQueue(queue) {
+      state.currentQueue = queue;
+      document.querySelectorAll('#queueTabs .tab').forEach(btn => {
+        const isActive = btn.dataset.queue === queue;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive);
+      });
+      await refresh();
+    }
+
+    async function setStatusFilter(status) {
+      state.statusFilter = status;
+      await refresh();
+    }
+
+    async function refresh() {
+      const btn = document.getElementById('refreshBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<div class="spinner" style="margin: 0;"></div>';
+
+      await fetchAllJobs();
+      if (state.currentView === 'tree') renderTreeTable();
+      else renderKanban();
+
+      btn.disabled = false;
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg> Refresh`;
+    }
+
+    // Event listeners
+    document.querySelectorAll('.view-toggle .btn').forEach(btn => {
+      btn.addEventListener('click', () => setView(btn.dataset.view));
+    });
+
+    document.querySelectorAll('#queueTabs .tab').forEach(btn => {
+      btn.addEventListener('click', () => setQueue(btn.dataset.queue));
+    });
+
+    document.getElementById('treeStatusFilter').addEventListener('change', (e) => setStatusFilter(e.target.value));
+
+    document.getElementById('refreshBtn').addEventListener('click', refresh);
+
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+    document.getElementById('jobModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Initial load
+    refresh();
+
+    // Auto-refresh every 15 seconds
+    setInterval(refresh, 15000);
+  </script>
+</body>
+
+</html>

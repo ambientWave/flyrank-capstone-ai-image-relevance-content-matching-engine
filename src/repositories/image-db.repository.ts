@@ -13,7 +13,7 @@ export interface ImageRow {
     id: string;
     filename: string;
     url_path: string;
-    tag?: string | null;
+    tag?: any | null;
     status: string;
     created_at: string;
     updated_at: string;
@@ -65,11 +65,6 @@ export class ImageDBRepository {
                     await new Promise((resolve) => setTimeout(resolve, delayMs));
                 } else {
                     console.error('[Database] All initialization attempts failed.');
-                    /**
-                     * If all 10 retries fail → throw err → unhandled rejection → process crashes with non-zero exit
-                     * restart: on-failure in compose.yaml,
-                     * Docker automatically restarts the api container
-                     */
                     throw err;
                 }
             }
@@ -120,6 +115,14 @@ export class ImageDBRepository {
         return images;
     }
 
+    async findById(id: string): Promise<ImageRow | undefined> {
+        const result = await this.pool.query<ImageRow>(
+            'SELECT id, filename, url_path, tag, status, created_at, updated_at FROM image WHERE id = $1',
+            [id]
+        );
+        return result.rows[0];
+    }
+
     async insert(images: ImageRowPreInsertion[]): Promise<ImageRow[]> {
         if (!images || images.length === 0) return [];
 
@@ -138,7 +141,7 @@ export class ImageDBRepository {
         return result.rows;
     }
 
-    async update(ids: string[], changes: Partial<{ status: string }>): Promise<ImageRow[]> {
+    async update(ids: string[], changes: Partial<{ status: string; tag: any }>): Promise<ImageRow[]> {
         if (!ids || ids.length === 0) return [];
 
         const updates: string[] = [];
@@ -148,6 +151,11 @@ export class ImageDBRepository {
         if (changes.status !== undefined) {
             updates.push(`status = $${paramIndex++}`);
             params.push(changes.status);
+        }
+
+        if (changes.tag !== undefined) {
+            updates.push(`tag = $${paramIndex++}`);
+            params.push(changes.tag);
         }
 
         if (updates.length === 0) {
@@ -163,7 +171,7 @@ export class ImageDBRepository {
             UPDATE image 
             SET ${updates.join(', ')} 
             WHERE id = ANY($${paramIndex}::uuid[]) 
-            RETURNING id, filename, url_path, status, created_at, updated_at
+            RETURNING id, filename, url_path, tag, status, created_at, updated_at
         `;
 
         const result = await this.pool.query<ImageRow>(sql, params);

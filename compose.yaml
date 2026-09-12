@@ -77,7 +77,7 @@ services:
       # pg_isready alone passes during the temporary first-boot server.
       # Adding a real SQL query ensures the check only passes when PostgreSQL 
       # can actually execute queries on the tasks database.
-      test: ["CMD-SHELL", "pg_isready -U postgres -d images && psql -U postgres -d images -c 'SELECT 1'"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d image_understanding_content_matching && psql -U postgres -d image_understanding_content_matching -c 'SELECT 1'"]
       start_period: 60s
       interval: 3s
       timeout: 5s

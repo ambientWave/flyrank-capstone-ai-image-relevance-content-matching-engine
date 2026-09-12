@@ -10,14 +10,13 @@ const imageCacheDir: string = path.join(process.cwd(), 'images');
 
 // All requests made with the client will be authenticated
 async function query(query: string): Promise<PhotosWithTotalResults | ErrorResponse> {
-    const result = await pexelsClient.photos.search({ query, per_page: 10 })
-        .then(
-            (photos: PhotosWithTotalResults | ErrorResponse) => photos
-        )
-        .catch(
-            (error: any) => error
-        );
-    return result;
+    try {
+        const result = await pexelsClient.photos.search({ query, per_page: 10 });
+        return result;
+    } catch (error: any) {
+        // Return a proper ErrorResponse format
+        return { error: error.message || 'Unknown error from Pexels API' };
+    }
 };
 
 export async function store(imageMap: Map<string, string>): Promise<any> {

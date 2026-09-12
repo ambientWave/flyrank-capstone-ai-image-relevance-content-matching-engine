@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Posts - Image Understanding</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <div class="header-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 17" />
+        </svg>
+        <span>Image Understanding</span>
+      </div>
+      <nav class="nav">
+        <a href="/dashboard.html" class="nav-link">Dashboard</a>
+        <a href="/jobs.html" class="nav-link">Jobs</a>
+        <a href="/images.html" class="nav-link">Images</a>
+        <a href="/posts.html" class="nav-link active">Posts</a>
+        <a href="/ranking.html" class="nav-link">Ranking</a>
+      </nav>
+    </header>
+
+    <main class="main" id="app">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Posts</h1>
+          <p class="page-subtitle">Process posts and find matching images</p>
+        </div>
+      </div>
+
+      <!-- Enqueue Posts -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="card-title">Enqueue Posts for Processing</h2>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label" for="postUrls">Post URLs (one per line)</label>
+            <textarea class="form-textarea form-input" id="postUrls" placeholder="https://example.com/post1
+https://example.com/post2
+https://example.com/post3" rows="4"></textarea>
+            <p class="form-hint">Posts will be downloaded, summarized, embedded, and made available for image matching.
+            </p>
+          </div>
+          <div class="flex gap-4">
+            <button class="btn btn-primary" id="enqueuePostsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Enqueue Posts
+            </button>
+            <button class="btn btn-secondary" id="clearPostsBtn">Clear</button>
+          </div>
+          <div id="postEnqueueStatus" class="form-hint" style="margin-top: 8px;"></div>
+        </div>
+      </div>
+
+      <!-- Posts List -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title">Processed Posts</h2>
+          <div class="flex items-center gap-4">
+            <select class="form-select" id="postsLimit" style="width: auto; min-width: 120px;">
+              <option value="20">20</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" id="refreshPostsBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M23 4v6h-6" />
+                <path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="card-body" id="postsContainer">
+          <div class="loading">
+            <div class="spinner"></div>Loading posts…
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Post Detail Modal -->
+  <div class="modal-overlay" id="postModal" role="dialog" aria-modal="true" aria-labelledby="postModalTitle">
+    <div class="modal" style="max-width: 700px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="postModalTitle">Post Details</h3>
+        <button class="modal-close" id="postModalClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="postModalBody">
+        <div class="loading">
+          <div class="spinner"></div>Loading…
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="postModalRankBtn">Find Matching Images</button>
+        <button class="btn btn-secondary" id="postModalCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api } from '/js/api.js';
+
+    function formatTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString();
+    }
+
+    function getStatusBadge(status) {
+      const badges = {
+        pending: 'badge-pending',
+        processing: 'badge-processing',
+        summarizing: 'badge-summarizing',
+        summarized: 'badge-summarized',
+        embedding: 'badge-embedding',
+        embedded: 'badge-embedded',
+        failed: 'badge-failed'
+      };
+      return `<span class="badge ${badges[status] || 'badge-pending'}">${status.replace('_', ' ')}</span>`;
+    }
+
+    async function loadPosts() {
+      const limit = document.getElementById('postsLimit').value;
+      const container = document.getElementById('postsContainer');
+
+      container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading posts…</div>';
+
+      try {
+        // We need a backend endpoint to list posts - for now show placeholder
+        container.innerHTML = `
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <p class="empty-state-title">No posts endpoint available</p>
+        <p class="empty-state-desc">Add GET /posts endpoint to backend to list processed posts.</p>
+        <p class="form-hint" style="margin-top: 12px;">You can still enqueue posts using the form above. After processing, use the Ranking page to find matching images.</p>
+      </div>
+    `;
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state"><p class="empty-state-title">Error</p><p class="empty-state-desc">${err.message}</p></div>`;
+      }
+    }
+
+    document.getElementById('enqueuePostsBtn').addEventListener('click', async () => {
+      const text = document.getElementById('postUrls').value.trim();
+      if (!text) return alert('Please enter post URLs');
+
+      const urls = text.split('\n').map(u => u.trim()).filter(Boolean);
+      const statusEl = document.getElementById('postEnqueueStatus');
+      const btn = document.getElementById('enqueuePostsBtn');
+
+      statusEl.textContent = `Enqueueing ${urls.length} post${urls.length !== 1 ? 's' : ''}…`;
+      statusEl.style.color = 'var(--accent)';
+      btn.disabled = true;
+
+      try {
+        const result = await api.enqueuePosts(urls);
+        statusEl.textContent = `Success! Batch ${result.batchId.slice(0, 8)}… with ${result.count} post${result.count !== 1 ? 's' : ''} enqueued.`;
+        statusEl.style.color = 'var(--success)';
+        document.getElementById('postUrls').value = '';
+        loadPosts();
+      } catch (err) {
+        console.error('Enqueue failed:', err);
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('clearPostsBtn').addEventListener('click', () => {
+      document.getElementById('postUrls').value = '';
+      document.getElementById('postEnqueueStatus').textContent = '';
+    });
+
+    document.getElementById('refreshPostsBtn').addEventListener('click', loadPosts);
+    document.getElementById('postsLimit').addEventListener('change', loadPosts);
+
+    // Post Modal
+    async function showPostModal(postId) {
+      const modal = document.getElementById('postModal');
+      const body = document.getElementById('postModalBody');
+      const title = document.getElementById('postModalTitle');
+
+      modal.classList.add('open');
+      title.textContent = `Post ${postId.slice(0, 12)}…`;
+      body.innerHTML = '<div class="loading"><div class="spinner"></div>Loading…</div>';
+
+      try {
+        // We'd need a GET /posts/:id endpoint
+        body.innerHTML = `
+      <div class="empty-state">
+        <p class="empty-state-title">Detail endpoint not available</p>
+        <p class="empty-state-desc">Add GET /posts/:id endpoint to view post details.</p>
+      </div>
+    `;
+      } catch (err) {
+        body.innerHTML = `<div class="empty-state"><p class="empty-state-title">Error</p><p class="empty-state-desc">${err.message}</p></div>`;
+      }
+    }
+
+    function closePostModal() {
+      document.getElementById('postModal').classList.remove('open');
+    }
+
+    document.getElementById('postModalClose').addEventListener('click', closePostModal);
+    document.getElementById('postModalCloseBtn').addEventListener('click', closePostModal);
+    document.getElementById('postModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closePostModal();
+    });
+
+    document.getElementById('postModalRankBtn').addEventListener('click', () => {
+      // Navigate to ranking page with post ID
+      const postId = document.getElementById('postModalTitle').textContent.match(/Post ([^…]+)/)?.[1];
+      if (postId) {
+        window.location.href = `/ranking.html?post=${postId}`;
+      }
+      closePostModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePostModal();
+    });
+
+    // Initial load
+    loadPosts();
+  </script>

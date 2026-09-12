@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ranking - Image Understanding</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="header">
+      <div class="header-brand">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <circle cx="8.5" cy="8.5" r="1.5" />
+          <path d="M21 15l-5-5L5 17" />
+        </svg>
+        <span>Image Understanding</span>
+      </div>
+      <nav class="nav">
+        <a href="/dashboard.html" class="nav-link">Dashboard</a>
+        <a href="/jobs.html" class="nav-link">Jobs</a>
+        <a href="/images.html" class="nav-link">Images</a>
+        <a href="/posts.html" class="nav-link">Posts</a>
+        <a href="/ranking.html" class="nav-link active">Ranking</a>
+      </nav>
+    </header>
+
+    <main class="main" id="app">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Image Ranking</h1>
+          <p class="page-subtitle">Find and rank images matching a post using semantic similarity</p>
+        </div>
+      </div>
+
+      <!-- Post Selection & Evaluation -->
+      <div class="card mb-4">
+        <div class="card-header">
+          <h2 class="card-title">Evaluate Post</h2>
+        </div>
+        <div class="card-body">
+          <div class="form-row" style="align-items: flex-end; gap: 16px;">
+            <div class="form-group" style="flex: 1; min-width: 300px;">
+              <label class="form-label" for="rankPostId">Post ID</label>
+              <input type="text" class="form-input" id="rankPostId" placeholder="Enter post UUID" required>
+              <p class="form-hint">Enter a post ID that has been processed (summarized + embedded)</p>
+            </div>
+            <div class="form-group" style="width: auto; min-width: 150px;">
+              <label class="form-label" for="rankResultsNum">Results</label>
+              <select class="form-select" id="rankResultsNum" style="width: auto;">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+                <option value="30">30</option>
+                <option value="50">50</option>
+              </select>
+            </div>
+            <div class="form-group" style="width: auto; min-width: 150px;">
+              <label class="form-label" for="rankThreshold">Threshold</label>
+              <select class="form-select" id="rankThreshold" style="width: auto;">
+                <option value="0.7">0.70</option>
+                <option value="0.75">0.75</option>
+                <option value="0.8" selected>0.80</option>
+                <option value="0.85">0.85</option>
+                <option value="0.9">0.90</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" id="rankEvaluateBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              Find Matches
+            </button>
+          </div>
+          <div id="rankStatus" class="form-hint" style="margin-top: 8px;"></div>
+        </div>
+      </div>
+
+      <!-- Post Summary Display -->
+      <div class="card mb-4" id="postSummaryCard" style="display: none;">
+        <div class="card-header">
+          <h2 class="card-title">Post Summary</h2>
+          <span id="postSummaryId" class="mono" style="font-size: 0.75rem; color: var(--fg-subtle);"></span>
+        </div>
+        <div class="card-body">
+          <p id="postSummaryText" style="line-height: 1.7; color: var(--fg);"></p>
+        </div>
+      </div>
+
+      <!-- Ranking Results -->
+      <div class="card" id="rankingCard" style="display: none;">
+        <div class="card-header">
+          <h2 class="card-title">Ranked Image Matches</h2>
+          <div class="flex items-center gap-4">
+            <span id="rankingCount" class="text-center" style="color: var(--fg-muted); font-size: 0.8125rem;"></span>
+            <label class="flex items-center gap-2"
+              style="font-size: 0.8125rem; color: var(--fg-muted); cursor: pointer;">
+              <input type="checkbox" id="rankFilterAccepted" checked> Accepted only
+            </label>
+            <label class="flex items-center gap-2"
+              style="font-size: 0.8125rem; color: var(--fg-muted); cursor: pointer;">
+              <input type="checkbox" id="rankShowThumbnails" checked> Thumbnails
+            </label>
+          </div>
+        </div>
+        <div class="card-body" style="padding: 0;">
+          <div id="rankingList" class="ranking-list"></div>
+        </div>
+      </div>
+
+      <!-- Recent Evaluations -->
+      <div class="card mt-4">
+        <div class="card-header">
+          <h2 class="card-title">Recent Evaluations</h2>
+          <button class="btn btn-secondary btn-sm" id="refreshEvalsBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M23 4v6h-6" />
+              <path d="M1 20v-6h6" />
+              <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+            </svg>
+          </button>
+        </div>
+        <div class="card-body">
+          <div class="table-wrapper">
+            <table class="table" id="evalTable">
+              <thead>
+                <tr>
+                  <th style="width: 180px;">Time</th>
+                  <th>Post ID</th>
+                  <th style="width: 100px;">Candidates</th>
+                  <th style="width: 100px;">Accepted</th>
+                  <th style="width: 100px;">Rejected</th>
+                  <th style="width: 100px;">Top Score</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="evalTableBody">
+                <tr>
+                  <td colspan="7" class="text-center loading">
+                    <div class="spinner"></div>Loading…
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Evaluation Detail Modal -->
+  <div class="modal-overlay" id="evalModal" role="dialog" aria-modal="true" aria-labelledby="evalModalTitle">
+    <div class="modal" style="max-width: 90vw; max-height: 90vh;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="evalModalTitle">Evaluation Details</h3>
+        <button class="modal-close" id="evalModalClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="evalModalBody" style="max-height: 70vh; overflow: auto;">
+        <div class="loading">
+          <div class="spinner"></div>Loading…
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="evalModalCloseBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { api } from '/js/api.js';
+
+    const state = { currentEvaluation: null, evaluations: [] };
+
+    function formatTime(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleString();
+    }
+
+    function getResultBadge(result) {
+      return result === 'ACCEPTED'
+        ? '<span class="badge badge-completed">Accepted</span>'
+        : '<span class="badge badge-rejected">Rejected</span>';
+    }
+
+    function renderRanking(candidates, filterAccepted = true, showThumbnails = true) {
+      const list = document.getElementById('rankingList');
+      const countEl = document.getElementById('rankingCount');
+
+      const filtered = filterAccepted
+        ? candidates.filter(c => c.result === 'ACCEPTED')
+        : candidates;
+
+      countEl.textContent = `${filtered.length} of ${candidates.length} candidate${candidates.length !== 1 ? 's' : ''} shown`;
+
+      if (!filtered.length) {
+        list.innerHTML = `
+      <div class="empty-state" style="padding: 40px; margin: 0;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <p class="empty-state-title">${filterAccepted ? 'No accepted matches' : 'No candidates found'}</p>
+        <p class="empty-state-desc">${filterAccepted ? 'Try lowering the threshold or showing all candidates.' : 'No images in the database match this post.'}</p>
+      </div>
+    `;
+        return;
+      }
+
+      list.innerHTML = filtered.map((candidate, idx) => `
+    <div class="ranking-item" data-image-id="${candidate.imageId}">
+      <div class="ranking-rank ${idx === 0 ? 'top-1' : idx === 1 ? 'top-2' : idx === 2 ? 'top-3' : ''}">${idx + 1}</div>
+      <div class="ranking-content">
+        ${showThumbnails && candidate.imageUrl ? `
+          <img class="ranking-image" src="${candidate.imageUrl}" alt="${candidate.candidate}" loading="lazy" onerror="this.style.display='none'">
+        ` : ''}
+        <div>
+          <div style="font-weight: 500; margin-bottom: 4px;">${candidate.candidate || 'Untitled'}</div>
+          <div class="ranking-details">
+            ${candidate.subject ? `<span>Subject: ${candidate.subject}</span>` : ''}
+            ${candidate.category ? `<span>Category: ${candidate.category}</span>` : ''}
+            ${candidate.attributes ? `<span>Attributes: ${candidate.attributes}</span>` : ''}
+            ${candidate.confidence ? `<span>Vision Confidence: ${(candidate.confidence * 100).toFixed(0)}%</span>` : ''}
+            <span>Image ID: <span class="mono">${candidate.imageId.slice(0, 12)}…</span></span>
+          </div>
+          <div class="ranking-details" style="margin-top: 8px; color: ${candidate.result === 'ACCEPTED' ? 'var(--success)' : 'var(--danger)'};">
+            ${getResultBadge(candidate.result)} • ${candidate.reason}
+          </div>
+        </div>
+      </div>
+      <div class="ranking-similarity ${candidate.result === 'ACCEPTED' ? 'accepted' : 'rejected'}">
+        ${(candidate.similarity * 100).toFixed(1)}%
+      </div>
+    </div>
+  `).join('');
+
+      // Click to view image
+      list.querySelectorAll('.ranking-item').forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          const candidate = filtered.find(c => c.imageId === item.dataset.imageId);
+          if (candidate?.imageUrl) showImageModal(candidate.imageUrl, candidate.candidate);
+        });
+      });
+    }
+
+    document.getElementById('rankEvaluateBtn').addEventListener('click', async () => {
+      const postId = document.getElementById('rankPostId').value.trim();
+      const resultsNum = parseInt(document.getElementById('rankResultsNum').value, 10);
+      const threshold = parseFloat(document.getElementById('rankThreshold').value);
+      const statusEl = document.getElementById('rankStatus');
+      const btn = document.getElementById('rankEvaluateBtn');
+
+      if (!postId) return alert('Please enter a post ID');
+
+      statusEl.textContent = 'Evaluating…';
+      statusEl.style.color = 'var(--accent)';
+      btn.disabled = true;
+
+      try {
+        const result = await api.evaluatePost(postId, resultsNum);
+        state.currentEvaluation = result;
+
+        // Override threshold filtering on client side
+        result.candidates.forEach(c => {
+          c.result = c.similarity >= threshold ? 'ACCEPTED' : 'REJECTED';
+          if (c.result === 'ACCEPTED') {
+            c.reason = `Similarity ${c.similarity.toFixed(2)} ≥ ${threshold} threshold`;
+          } else {
+            c.reason = `Under threshold: similarity ${c.similarity.toFixed(2)} < ${threshold}`;
+          }
+        });
+
+        // Show post summary
+        document.getElementById('postSummaryCard').style.display = 'block';
+        document.getElementById('postSummaryId').textContent = result.postId;
+        document.getElementById('postSummaryText').textContent = result.postSummary;
+
+        // Show ranking
+        document.getElementById('rankingCard').style.display = 'block';
+        renderRanking(result.candidates,
+          document.getElementById('rankFilterAccepted').checked,
+          document.getElementById('rankShowThumbnails').checked
+        );
+
+        statusEl.textContent = `Found ${result.candidates.length} candidates, ${result.candidates.filter(c => c.result === 'ACCEPTED').length} accepted`;
+        statusEl.style.color = 'var(--success)';
+
+        // Save to recent evaluations
+        saveEvaluation(result);
+        loadRecentEvaluations();
+
+      } catch (err) {
+        console.error('Evaluation failed:', err);
+        document.getElementById('postSummaryCard').style.display = 'none';
+        document.getElementById('rankingCard').style.display = 'none';
+        statusEl.textContent = `Error: ${err.message}`;
+        statusEl.style.color = 'var(--danger)';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('rankFilterAccepted').addEventListener('change', () => {
+      if (state.currentEvaluation) {
+        renderRanking(state.currentEvaluation.candidates,
+          document.getElementById('rankFilterAccepted').checked,
+          document.getElementById('rankShowThumbnails').checked
+        );
+      }
+    });
+
+    document.getElementById('rankShowThumbnails').addEventListener('change', () => {
+      if (state.currentEvaluation) {
+        renderRanking(state.currentEvaluation.candidates,
+          document.getElementById('rankFilterAccepted').checked,
+          document.getElementById('rankShowThumbnails').checked
+        );
+      }
+    });
+
+    // Recent evaluations stored in localStorage
+    function saveEvaluation(result) {
+      const evals = JSON.parse(localStorage.getItem('recentEvaluations') || '[]');
+      evals.unshift({
+        postId: result.postId,
+        postSummary: result.postSummary,
+        timestamp: new Date().toISOString(),
+        candidateCount: result.candidates.length,
+        acceptedCount: result.candidates.filter(c => c.result === 'ACCEPTED').length,
+        rejectedCount: result.candidates.filter(c => c.result === 'REJECTED').length,
+        topScore: result.candidates[0]?.similarity || 0
+      });
+      // Keep last 20
+      localStorage.setItem('recentEvaluations', JSON.stringify(evals.slice(0, 20)));
+    }
+
+    function loadRecentEvaluations() {
+      const tbody = document.getElementById('evalTableBody');
+      const evals = JSON.parse(localStorage.getItem('recentEvaluations') || '[]');
+      // Filter out any invalid entries
+      const validEvals = evals.filter(e => e && e.postId && e.timestamp);
+      state.evaluations = validEvals;
+
+      if (!validEvals.length) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center empty-state"><div class="empty-state" style="padding: 20px;"><p class="empty-state-title">No evaluations yet</p><p class="empty-state-desc">Run an evaluation above to see history.</p></div></tr>';
+        return;
+      }
+
+      tbody.innerHTML = validEvals.map((evaluation, idx) => `
+    <tr>
+      <td>${formatTime(evaluation.timestamp)}</td>
+      <td class="mono">${evaluation.postId.slice(0, 12)}…</td>
+      <td>${evaluation.candidateCount}</td>
+      <td style="color: var(--success); font-weight: 600;">${evaluation.acceptedCount}</td>
+      <td style="color: var(--danger); font-weight: 600;">${evaluation.rejectedCount}</td>
+      <td class="ranking-similarity ${evaluation.topScore >= 0.8 ? 'accepted' : ''}">${(evaluation.topScore * 100).toFixed(1)}%</td>
+      <td>
+        <button class="btn btn-ghost btn-sm btn-icon" data-eval-idx="${idx}" title="View details">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </td>
+    </tr>
+  `).join('');
+
+      tbody.querySelectorAll('[data-eval-idx]').forEach(btn => {
+        btn.addEventListener('click', () => showEvaluationModal(parseInt(btn.dataset.evalIdx, 10)));
+      });
+    }
+
+    function showEvaluationModal(idx) {
+      const evaluation = state.evaluations[idx];
+      if (!evaluation) return;
+
+      const modal = document.getElementById('evalModal');
+      const body = document.getElementById('evalModalBody');
+      const title = document.getElementById('evalModalTitle');
+
+      modal.classList.add('open');
+      title.textContent = `Evaluation ${evaluation.postId.slice(0, 12)}…`;
+      body.innerHTML = `
+    <div style="margin-bottom: 16px; padding: 12px; background: var(--bg); border-radius: var(--radius);">
+      <div style="font-weight: 600; margin-bottom: 8px;">Post Summary</div>
+      <div style="line-height: 1.6; color: var(--fg-muted);">${evaluation.postSummary}</div>
+    </div>
+    <div class="ranking-list">
+      ${evaluation.candidates?.map((candidate, i) => `
+        <div class="ranking-item" style="grid-template-columns: auto 1fr auto; padding: 12px;">
+          <div class="ranking-rank ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</div>
+          <div class="ranking-content">
+            <div style="font-weight: 500;">${candidate.candidate || 'Untitled'}</div>
+            <div class="ranking-details">
+              ${candidate.subject ? `<span>Subject: ${candidate.subject}</span>` : ''}
+              ${candidate.category ? `<span>Category: ${candidate.category}</span>` : ''}
+              ${candidate.reason ? `<span style="color: ${candidate.result === 'ACCEPTED' ? 'var(--success)' : 'var(--danger)'};">${candidate.reason}</span>` : ''}
+            </div>
+          </div>
+          <div class="ranking-similarity ${candidate.result === 'ACCEPTED' ? 'accepted' : 'rejected'}">
+            ${(candidate.similarity * 100).toFixed(1)}%
+          </div>
+        </div>
+      `).join('') || '<p class="empty-state-desc" style="text-align: center;">No candidate data stored</p>'}
+    </div>
+  `;
+    }
+
+    function closeEvalModal() {
+      document.getElementById('evalModal').classList.remove('open');
+    }
+
+    function showImageModal(url, title) {
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+    <div class="modal" style="max-width: 90vw; max-height: 90vh;">
+      <div class="modal-header">
+        <h3 class="modal-title">${title || 'Image'}</h3>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <img src="${url}" alt="${title}" style="max-width: 100%; max-height: 70vh; object-fit: contain;" onerror="this.outerHTML='<div class=\'empty-state\'><p class=\'empty-state-title\'>Failed to load</p></div>'">
+      </div>
+    </div>
+  `;
+      document.body.appendChild(modal);
+      requestAnimationFrame(() => modal.classList.add('open'));
+
+      modal.querySelector('.modal-close').addEventListener('click', () => {
+        modal.classList.remove('open');
+        setTimeout(() => modal.remove(), 150);
+      });
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.classList.remove('open');
+          setTimeout(() => modal.remove(), 150);
+        }
+      });
+    }
+
+    document.getElementById('evalModalClose').addEventListener('click', closeEvalModal);
+    document.getElementById('evalModalCloseBtn').addEventListener('click', closeEvalModal);
+    document.getElementById('evalModal').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeEvalModal();
+    });
+
+    document.getElementById('refreshEvalsBtn').addEventListener('click', loadRecentEvaluations);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeEvalModal();
+    });
+
+    // Check URL for post parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const postParam = urlParams.get('post');
+    if (postParam) {
+      document.getElementById('rankPostId').value = postParam;
+      document.getElementById('rankEvaluateBtn').click();
+    }
+
+    // Initial load
+    loadRecentEvaluations();
+  </script>
