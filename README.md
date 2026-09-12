@@ -19,6 +19,7 @@
 ## Table of Contents
 
 - [Project Overview](#project-overview)
+- [Screenshots](#screenshots)
 - [Core Architectural Principles & Highlights](#core-architectural-principles--highlights)
   - [1. Clean Monolithic Multilayered Architecture & Separation of Concerns](#1-clean-monolithic-multilayered-architecture--separation-of-concerns)
   - [2. Dependency Injection via TSyringe: In-Memory Model & Client Retention](#2-dependency-injection-via-tsyringe-in-memory-model--client-retention)
@@ -54,6 +55,15 @@ The **Image Understanding & Content Matching Engine** is a high-throughput, deco
 2. **Contextual Article-to-Image Matching with Semantic Guardrails**: Ingesting long-form blog and article URLs, generating zero-cost local summaries with quantized **HuggingFace T5-Small**, converting post summaries into high-dimensional embeddings, and executing high-precision vector similarity retrieval against pre-indexed images with configurable similarity thresholds ($\ge 0.80$) to eliminate false-positive image recommendations.
 
 The system combines **Express 5**, **TypeScript**, **PostgreSQL 16**, **Redis 7 + BullMQ 6**, **TSyringe Dependency Injection**, **Zod**, and a responsive dashboard.
+
+---
+
+## Screenshots
+<img width="820" height="952" alt="1" src="https://github.com/user-attachments/assets/5338b545-7667-48c9-9ac2-8ad56b5b7f3b" />
+<img width="1869" height="899" alt="2" src="https://github.com/user-attachments/assets/02af7eee-4277-440b-9484-3eb35af41fa3" />
+<img width="1878" height="1596" alt="3" src="https://github.com/user-attachments/assets/cc602134-6dbf-476f-8a56-ff1da0a739d8" />
+<img width="1894" height="894" alt="4" src="https://github.com/user-attachments/assets/59c69637-a040-4324-847a-498007da042e" />
+
 
 ---
 
@@ -105,6 +115,7 @@ To prevent architectural erosion, every layer's responsibility is governed by a 
    - **Repositories must never contain a `for` loop calling `insert()` $N$ times** — that is business orchestration wearing a persistence hat.
    - **One Repository Per Aggregate**: Boundaries match domain concepts that services think in (e.g., `ImageDBRepository`, `PostDBRepository`, `CostLogDBRepository`), not merely "a database table exists."
 4. **Workers (`src/workers/`) — "Run One Step, Then Hand Control Back"**:
+<img width="1919" height="1079" alt="5" src="https://github.com/user-attachments/assets/5cb1dda6-33d9-46b9-9469-8b05e6bf0b5d" />
    - A worker's sole job is to take a job payload from BullMQ, invoke the appropriate Domain Service method, and hand control back to the orchestrator.
    - **Workers never contain a decision about what happens next.** The next step in the pipeline is always determined by the Orchestrator's lifecycle callbacks.
    - **Workers NEVER call Repositories directly.** All data access is strictly encapsulated within Domain Services.
