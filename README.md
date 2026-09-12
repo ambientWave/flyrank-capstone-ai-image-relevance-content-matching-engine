@@ -116,6 +116,7 @@ To prevent architectural erosion, every layer's responsibility is governed by a 
    - **One Repository Per Aggregate**: Boundaries match domain concepts that services think in (e.g., `ImageDBRepository`, `PostDBRepository`, `CostLogDBRepository`), not merely "a database table exists."
 4. **Workers (`src/workers/`) — "Run One Step, Then Hand Control Back"**:
 <img width="1919" height="1079" alt="5" src="https://github.com/user-attachments/assets/5cb1dda6-33d9-46b9-9469-8b05e6bf0b5d" />
+
    - A worker's sole job is to take a job payload from BullMQ, invoke the appropriate Domain Service method, and hand control back to the orchestrator.
    - **Workers never contain a decision about what happens next.** The next step in the pipeline is always determined by the Orchestrator's lifecycle callbacks.
    - **Workers NEVER call Repositories directly.** All data access is strictly encapsulated within Domain Services.
